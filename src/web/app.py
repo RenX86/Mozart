@@ -5,7 +5,7 @@ import discord
 import os
 
 app = Flask(__name__)
-app.secret_key = 'supersecretkey' # Needed for flashing messages
+app.secret_key = os.getenv('FLASK_SECRET_KEY', 'default-dev-key-do-not-use-in-prod') # Fallback for safety
 
 # Global variable to hold the running bot instance
 bot = None
@@ -16,8 +16,9 @@ def get_music_cog():
     return None
 
 def get_active_voice_client():
+    # Improved logic: Return the first active voice client found
     if bot and bot.voice_clients:
-        return bot.voice_clients[0] # Simplification: control the first active connection
+        return bot.voice_clients[0] 
     return None
 
 @app.route('/')
@@ -25,8 +26,15 @@ def index():
     music_cog = get_music_cog()
     voice_client = get_active_voice_client()
     
-    current_song = music_cog.current_song if music_cog else None
-    queue = music_cog.queue if music_cog else []
+    current_song = None
+    queue = []
+    
+    # If we have an active connection, fetch data specific to THAT guild
+    if voice_client and music_cog:
+        guild_id = voice_client.guild.id
+        # Safely access the dictionary using .get()
+        current_song = music_cog.current_songs.get(guild_id)
+        queue = music_cog.queues.get(guild_id, [])
     
     is_playing = voice_client.is_playing() if voice_client else False
     is_paused = voice_client.is_paused() if voice_client else False

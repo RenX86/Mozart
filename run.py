@@ -1,6 +1,11 @@
 import sys
 import os
 import threading
+from dotenv import load_dotenv
+
+# Load environment variables early
+load_dotenv()
+
 from src.web import app as flask_app  # Import our new web module
 
 # Add the 'src' directory to the Python path

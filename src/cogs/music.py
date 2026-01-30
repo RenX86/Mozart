@@ -3,14 +3,21 @@ from discord import app_commands
 from discord.ext import commands
 import yt_dlp
 import asyncio
-from typing import Any
+from typing import Any, Dict, List, Optional
 
 class Music(commands.Cog):
     def __init__(self, bot, download_dir=None):
         self.bot = bot
-        self.queue = []
-        self.current_song = None # Added state tracking
+        # Dictionary mapping guild_id -> List of song dicts
+        self.queues: Dict[int, List[Dict]] = {}
+        # Dictionary mapping guild_id -> current song dict
+        self.current_songs: Dict[int, Dict] = {}
         
+    def get_queue(self, guild_id: int) -> List[Dict]:
+        if guild_id not in self.queues:
+            self.queues[guild_id] = []
+        return self.queues[guild_id]
+
     def get_stream_url(self, webpage_url):
         ydl_opts: Any = {
             'format': 'bestaudio/best',
@@ -29,12 +36,17 @@ class Music(commands.Cog):
             return info.get('url'), info.get('title')
 
     def play_next(self, voice_client):
-        if not self.queue:
-            self.current_song = None
+        guild_id = voice_client.guild.id
+        queue = self.get_queue(guild_id)
+
+        if not queue:
+            # No more songs for this guild
+            if guild_id in self.current_songs:
+                del self.current_songs[guild_id]
             return
 
-        next_song = self.queue.pop(0)
-        self.current_song = next_song # Update current song
+        next_song = queue.pop(0)
+        self.current_songs[guild_id] = next_song
         
         webpage_url = next_song['webpage_url']
         channel = next_song['channel']
@@ -163,12 +175,16 @@ class Music(commands.Cog):
             'channel': interaction.channel
         }
 
+        # Get the specific queue for this guild
+        guild_id = interaction.guild.id
+        queue = self.get_queue(guild_id)
+
         if voice_client.is_playing():
-            self.queue.append(queue_item)
+            queue.append(queue_item)
             await interaction.followup.send(f"Added **{title}** to the queue.")
         else:
             # Add to queue and play immediately (play_next logic handles popping)
-            self.queue.append(queue_item)
+            queue.append(queue_item)
             # Send initial message
             await interaction.followup.send(f"Queued **{title}**. Starting playback...")
             # Trigger playback
@@ -205,8 +221,12 @@ class Music(commands.Cog):
             return
         voice_client = interaction.guild.voice_client
         if isinstance(voice_client, discord.VoiceClient):
-            self.queue.clear()
-            self.current_song = None
+            # Clear this guild's queue
+            if interaction.guild.id in self.queues:
+                self.queues[interaction.guild.id].clear()
+            if interaction.guild.id in self.current_songs:
+                del self.current_songs[interaction.guild.id]
+                
             if voice_client.is_playing() or voice_client.is_paused():
                 voice_client.stop()
             await voice_client.disconnect()
