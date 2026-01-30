@@ -6,8 +6,24 @@ from dotenv import load_dotenv
 import sqlite3
 import yt_dlp
 import asyncio
+import shutil
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+def cleanup_downloads():
+    download_dir = os.path.join(BASE_DIR, "downloads")
+    if os.path.exists(download_dir):
+        for filename in os.listdir(download_dir):
+            file_path = os.path.join(download_dir, filename)
+            try:
+                if os.path.isfile(file_path) or os.path.islink(file_path):
+                    os.unlink(file_path)
+                elif os.path.isdir(file_path):
+                    shutil.rmtree(file_path)
+            except Exception as e:
+                print(f"Failed to delete {file_path}. Reason: {e}")
+    else:
+        os.makedirs(download_dir)
 
 profanity = ["fuck you", "nigga"]
 
@@ -82,6 +98,7 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 
 @bot.event
 async def on_ready():
+    cleanup_downloads()
     synced = await bot.tree.sync()
     print(f"{bot.user} is online! Synced {len(synced)} commands globally.")
 
@@ -212,6 +229,11 @@ async def resume(interaction: discord.Interaction):
 async def stop(interaction: discord.Interaction):
     voice_client = interaction.guild.voice_client
     if voice_client:
+        # Stop playback first, which should trigger the 'after' callback if already playing
+        if voice_client.is_playing() or voice_client.is_paused():
+             voice_client.stop()
+        
+        # Disconnect from the channel
         await voice_client.disconnect()
         await interaction.response.send_message("Stopped the music and disconnected.")
     else:
