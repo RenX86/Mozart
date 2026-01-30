@@ -10,13 +10,13 @@ class Moderation(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message(self, msg):
-        if msg.author.bot:
+        if msg.author.bot or not msg.guild:
             return
 
         # Check for profanity
         for term in self.profanity:
             if term.lower() in msg.content.lower():
-                num_warnings = self.db.increase_and_get_warnings(msg.author.id, msg.guild.id)
+                num_warnings = await self.db.increase_and_get_warnings(msg.author.id, msg.guild.id)
                 
                 if num_warnings >= 3:
                     try:
