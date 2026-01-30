@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mozart Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <nav class="navbar mb-4">
+        <div class="container">
+            <a class="navbar-brand" href="#">
+                <i class="fas fa-music me-2"></i> Mozart Dashboard
+            </a>
+            <div class="d-flex align-items-center">
+                <span class="me-3">
+                    {% if bot_name %}
+                        <span class="badge badge-online">ONLINE</span>
+                    {% else %}
+                        <span class="badge badge-offline">OFFLINE</span>
+                    {% endif %}
+                </span>
+                <button id="themeToggle" class="btn btn-link theme-toggle" title="Toggle Theme">
+                    <i class="fas fa-moon"></i>
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <!-- Stats Row -->
+        <div class="row mb-4">
+            <div class="col-md-4">
+                <div class="card p-3 text-center">
+                    <h5 class="text-muted">Bot Name</h5>
+                    <h3>{{ bot_name }}</h3>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card p-3 text-center">
+                    <h5 class="text-muted">Latency</h5>
+                    <h3>{{ latency }} ms</h3>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card p-3 text-center">
+                    <h5 class="text-muted">Servers</h5>
+                    <h3>{{ guild_count }}</h3>
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <!-- Now Playing Column -->
+            <div class="col-md-6">
+                <div class="card h-100">
+                    <div class="card-header">
+                        <i class="fas fa-compact-disc me-2"></i> Now Playing
+                    </div>
+                    <div class="card-body text-center d-flex flex-column justify-content-center align-items-center">
+                        {% if current_song %}
+                            <h4 class="card-title mb-4">{{ current_song.title }}</h4>
+                            <div class="controls mb-3">
+                                <form action="{{ url_for('pause') if is_playing else url_for('resume') }}" method="POST" class="d-inline">
+                                    <button type="submit" class="btn btn-control mx-2">
+                                        <i class="fas {{ 'fa-pause' if is_playing else 'fa-play' }}"></i>
+                                    </button>
+                                </form>
+                                <form action="{{ url_for('skip') }}" method="POST" class="d-inline">
+                                    <button type="submit" class="btn btn-control mx-2">
+                                        <i class="fas fa-forward"></i>
+                                    </button>
+                                </form>
+                            </div>
+                            <p class="text-muted">Requested in {{ current_song.channel.guild.name if current_song.channel else 'Unknown' }}</p>
+                        {% else %}
+                            <p class="text-muted my-5">No music playing currently.</p>
+                            {% if voice_connected %}
+                                <span class="badge bg-success">Connected to Voice</span>
+                            {% else %}
+                                <span class="badge bg-secondary">Idle</span>
+                            {% endif %}
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Queue Column -->
+            <div class="col-md-6">
+                <div class="card h-100">
+                    <div class="card-header">
+                        <i class="fas fa-list-ol me-2"></i> Queue
+                    </div>
+                    <ul class="list-group list-group-flush" style="max-height: 300px; overflow-y: auto;">
+                        {% if queue %}
+                            {% for song in queue %}
+                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                    <div class="text-truncate" style="max-width: 80%;">
+                                        {{ loop.index }}. {{ song.title }}
+                                    </div>
+                                    <!-- Duration would be here if available -->
+                                </li>
+                            {% endfor %}
+                        {% else %}
+                            <li class="list-group-item text-center text-muted">Queue is empty</li>
+                        {% endif %}
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script>
+        // Theme Toggling Logic
+        const themeToggleBtn = document.getElementById('themeToggle');
+        const themeIcon = themeToggleBtn.querySelector('i');
+        
+        // Check saved theme
+        const savedTheme = localStorage.getItem('theme') || 'dark';
+        document.documentElement.setAttribute('data-theme', savedTheme);
+        updateIcon(savedTheme);
+
+        themeToggleBtn.addEventListener('click', () => {
+            let currentTheme = document.documentElement.getAttribute('data-theme');
+            let newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            
+            document.documentElement.setAttribute('data-theme', newTheme);
+            localStorage.setItem('theme', newTheme);
+            updateIcon(newTheme);
+        });
+
+        function updateIcon(theme) {
+            if (theme === 'dark') {
+                themeIcon.classList.remove('fa-sun');
+                themeIcon.classList.add('fa-moon');
+            } else {
+                themeIcon.classList.remove('fa-moon');
+                themeIcon.classList.add('fa-sun');
+            }
+        }
+
+        // Auto-refresh logic (basic)
+        setTimeout(() => {
+            window.location.reload();
+        }, 5000);
+    </script>
+</body>
+</html>

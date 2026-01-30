@@ -9,7 +9,7 @@ class Music(commands.Cog):
     def __init__(self, bot, download_dir=None):
         self.bot = bot
         self.queue = []
-        # download_dir is no longer used but kept in init for compatibility if needed
+        self.current_song = None # Added state tracking
         
     def get_stream_url(self, webpage_url):
         ydl_opts: Any = {
@@ -20,7 +20,7 @@ class Music(commands.Cog):
             'nocheckcertificate': True,
             'extractor_args': {
                 'youtube': {
-                    'player_client': ['mweb', 'web', 'android'],
+                    'player_client': ['android', 'ios', 'web'],
                 },
             },
         }
@@ -30,9 +30,12 @@ class Music(commands.Cog):
 
     def play_next(self, voice_client):
         if not self.queue:
+            self.current_song = None
             return
 
         next_song = self.queue.pop(0)
+        self.current_song = next_song # Update current song
+        
         webpage_url = next_song['webpage_url']
         channel = next_song['channel']
         requested_title = next_song['title']
@@ -66,10 +69,11 @@ class Music(commands.Cog):
                 if not voice_client.is_connected():
                     return
 
+                # Explicitly pass arguments to avoid type checker confusion
                 source = discord.FFmpegPCMAudio(
                     stream_url,
-                    before_options='-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5',
-                    options='-vn'
+                    before_options=ffmpeg_options['before_options'],
+                    options=ffmpeg_options['options']
                 )
                 voice_client.play(source, after=after_playing)
                 
@@ -124,7 +128,7 @@ class Music(commands.Cog):
             'default_search': 'ytsearch', # Auto search if not a URL
             'extractor_args': {
                 'youtube': {
-                    'player_client': ['mweb', 'web', 'android'],
+                    'player_client': ['android', 'ios', 'web'],
                 },
             },
         }
@@ -202,6 +206,7 @@ class Music(commands.Cog):
         voice_client = interaction.guild.voice_client
         if isinstance(voice_client, discord.VoiceClient):
             self.queue.clear()
+            self.current_song = None
             if voice_client.is_playing() or voice_client.is_paused():
                 voice_client.stop()
             await voice_client.disconnect()

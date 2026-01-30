@@ -1,0 +1,115 @@
+:root {
+    /* Dark Mode (Default) */
+    --bg-body: #1e2124;
+    --bg-nav: #282b30;
+    --bg-card: #282b30;
+    --bg-card-header: #36393e;
+    --bg-list: #2f3136;
+    --text-main: #ffffff;
+    --text-muted: #b9bbbe; /* Lighter gray for better contrast on dark */
+    --border-color: #202225;
+    --accent-color: #7289da;
+    --badge-bg-idle: #747f8d;
+}
+
+[data-theme="light"] {
+    /* Light Mode */
+    --bg-body: #f0f2f5;
+    --bg-nav: #ffffff;
+    --bg-card: #ffffff;
+    --bg-card-header: #f8f9fa;
+    --bg-list: #ffffff;
+    --text-main: #060607;
+    --text-muted: #4f5660; /* Darker gray for better contrast on light */
+    --border-color: #e3e5e8;
+    --accent-color: #5865f2;
+    --badge-bg-idle: #e3e5e8;
+}
+
+body {
+    background-color: var(--bg-body);
+    color: var(--text-main);
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    transition: background-color 0.3s, color 0.3s;
+}
+
+.navbar {
+    background-color: var(--bg-nav);
+    border-bottom: 1px solid var(--border-color);
+    transition: background-color 0.3s;
+}
+
+.navbar-brand, .navbar-text {
+    color: var(--text-main) !important;
+}
+
+.card {
+    background-color: var(--bg-card);
+    border: 1px solid var(--border-color);
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    margin-bottom: 20px;
+    transition: background-color 0.3s, border-color 0.3s;
+}
+
+.card-header {
+    background-color: var(--bg-card-header);
+    border-bottom: 1px solid var(--border-color);
+    font-weight: bold;
+    color: var(--accent-color);
+    transition: background-color 0.3s;
+}
+
+.btn-control {
+    background-color: var(--accent-color);
+    color: white !important; /* Always white icons on accent button */
+    border: none;
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+    transition: transform 0.2s;
+}
+
+.btn-control:hover {
+    transform: scale(1.1);
+    opacity: 0.9;
+}
+
+.list-group-item {
+    background-color: var(--bg-list);
+    color: var(--text-main);
+    border-color: var(--border-color);
+    transition: background-color 0.3s, color 0.3s;
+}
+
+h3, h4, h5 {
+    color: var(--text-main);
+}
+
+.text-muted {
+    color: var(--text-muted) !important;
+}
+
+.status-badge {
+    font-size: 0.8rem;
+    padding: 5px 10px;
+    border-radius: 15px;
+}
+
+.badge-online { background-color: #43b581; color: white; }
+.badge-offline { background-color: #f04747; color: white; }
+
+.theme-toggle {
+    cursor: pointer;
+    font-size: 1.2rem;
+    color: var(--text-main);
+    border: none;
+    background: none;
+}
+
+.theme-toggle:focus {
+    outline: none;
+}
