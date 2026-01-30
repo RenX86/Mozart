@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: mozart-bot
+    env: docker
+    plan: free
+    buildCommand: docker build -t mozart .
+    startCommand: python run.py
+    envVars:
+      - key: DISCORD_TOKEN
+        sync: false
+      - key: FLASK_SECRET_KEY
+        generateValue: true
+      - key: PORT
+        value: 10000

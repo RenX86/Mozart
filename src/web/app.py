@@ -92,6 +92,7 @@ def run_flask_app():
     mode_str = 'DEBUG (VS Code Detected)' if is_vscode else ('DEBUG' if debug_enabled else 'PRODUCTION')
     print(f" * Web Dashboard: Running in {mode_str} mode")
     
-    # Run on port 5000
+    # Run on port 5000 (or PORT env var for Render)
     # use_reloader must be False to avoid spawning a duplicate Discord bot instance
-    app.run(host='0.0.0.0', port=5000, debug=debug_enabled, use_reloader=False)
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port, debug=debug_enabled, use_reloader=False)
