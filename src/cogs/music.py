@@ -3,57 +3,86 @@ from discord import app_commands
 from discord.ext import commands
 import yt_dlp
 import asyncio
-import os
-import shutil
+from typing import Any
 
 class Music(commands.Cog):
-    def __init__(self, bot, download_dir):
+    def __init__(self, bot, download_dir=None):
         self.bot = bot
-        self.download_dir = download_dir
         self.queue = []
-        self.ensure_download_dir()
+        # download_dir is no longer used but kept in init for compatibility if needed
+        
+    def get_stream_url(self, webpage_url):
+        ydl_opts: Any = {
+            'format': 'bestaudio/best',
+            'noplaylist': True,
+            'quiet': True,
+            'no_warnings': True,
+            'nocheckcertificate': True,
+            'extractor_args': {
+                'youtube': {
+                    'player_client': ['mweb', 'web', 'android'],
+                },
+            },
+        }
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(webpage_url, download=False)
+            return info.get('url'), info.get('title')
 
-    def ensure_download_dir(self):
-        if not os.path.exists(self.download_dir):
-            os.makedirs(self.download_dir)
-
-    def play_next(self, voice_client, previous_filename):
-        # Cleanup previous file
-        try:
-            if os.path.exists(previous_filename):
-                os.remove(previous_filename)
-        except Exception as e:
-            print(f"Error deleting file {previous_filename}: {e}")
-
+    def play_next(self, voice_client):
         if not self.queue:
             return
 
         next_song = self.queue.pop(0)
-        filename = next_song['filename']
-        title = next_song['title']
+        webpage_url = next_song['webpage_url']
         channel = next_song['channel']
+        requested_title = next_song['title']
 
-        def after_playing(error):
-            if error:
-                print(f"Player error: {error}")
-            self.play_next(voice_client, filename)
-
-        try:
-            # Check if still connected
-            if not voice_client.is_connected():
-                return
+        # Run extraction in executor to avoid blocking
+        async def play_process():
+            try:
+                loop = asyncio.get_running_loop()
+                # Re-extract info to get a fresh stream URL
+                stream_url, title = await loop.run_in_executor(None, lambda: self.get_stream_url(webpage_url))
                 
-            source = discord.FFmpegPCMAudio(filename, executable="ffmpeg")
-            voice_client.play(source, after=after_playing)
-            
-            # Notify channel
-            if channel:
-                coro = channel.send(f"Now playing **{title}**")
-                asyncio.run_coroutine_threadsafe(coro, self.bot.loop)
-        except Exception as e:
-            print(f"Error playing next song: {e}")
-            # Try to play the next one if this one failed
-            self.play_next(voice_client, filename)
+                if not stream_url:
+                    print(f"Could not extract stream URL for {title}")
+                    if channel:
+                        await channel.send(f"Could not play **{title}** (stream URL missing).")
+                    self.play_next(voice_client)
+                    return
+
+                # FFmpeg options for stable streaming
+                ffmpeg_options = {
+                    'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5',
+                    'options': '-vn'
+                }
+
+                def after_playing(error):
+                    if error:
+                        print(f"Player error: {error}")
+                    self.play_next(voice_client)
+
+                # Check connection before playing
+                if not voice_client.is_connected():
+                    return
+
+                source = discord.FFmpegPCMAudio(
+                    stream_url,
+                    before_options='-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5',
+                    options='-vn'
+                )
+                voice_client.play(source, after=after_playing)
+                
+                if channel:
+                    await channel.send(f"Now playing **{title}**")
+
+            except Exception as e:
+                print(f"Error in play_next: {e}")
+                if channel:
+                    await channel.send(f"Error playing **{requested_title}**: {e}")
+                self.play_next(voice_client)
+
+        asyncio.run_coroutine_threadsafe(play_process(), self.bot.loop)
 
     @app_commands.command(name="play", description="Play a song or add it to the queue.")
     @app_commands.describe(song_query="search query")
@@ -84,75 +113,62 @@ class Music(commands.Cog):
         if not isinstance(voice_client, discord.VoiceClient):
             await interaction.followup.send("Failed to connect to the voice channel properly.")
             return
-        
-        ydl_options = {
-            "format": "bestaudio/best",
-            "noplaylist": True,
-            "nocheckcertificate": True,
-            "outtmpl": os.path.join(self.download_dir, "%(id)s.%(ext)s"),
-            "source_address": "0.0.0.0",
-            "extractor_args": {
-                "youtube": {
-                    "player_client": ["android", "web"],
+
+        # Search options
+        ydl_opts: Any = {
+            'format': 'bestaudio/best',
+            'noplaylist': True,
+            'quiet': True,
+            'no_warnings': True,
+            'nocheckcertificate': True,
+            'default_search': 'ytsearch', # Auto search if not a URL
+            'extractor_args': {
+                'youtube': {
+                    'player_client': ['mweb', 'web', 'android'],
                 },
-            },
-            "http_headers": {
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
-                "Referer": "https://www.youtube.com/",
             },
         }
         
-        query = "ytsearch1: " + song_query
-        
-        def download_song(query, opts):
-            with yt_dlp.YoutubeDL(opts) as ydl:
-                info = ydl.extract_info(query, download=True)
+        def search_song(query):
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                # extract_info with download=False is fast
+                info = ydl.extract_info(query, download=False)
                 return info
 
         loop = asyncio.get_running_loop()
         try:
-            results = await loop.run_in_executor(None, lambda: download_song(query, ydl_options))
+            info = await loop.run_in_executor(None, lambda: search_song(song_query))
         except Exception as e:
-            await interaction.followup.send(f"Error downloading song: {e}")
+            await interaction.followup.send(f"Error searching song: {e}")
             return
 
-        tracks = results.get("entries",[])
+        # Handle search results (entries) or direct URL
+        if 'entries' in info:
+            if not info['entries']:
+                await interaction.followup.send("No results found.")
+                return
+            # Take the first result
+            info = info['entries'][0]
         
-        if not tracks:
-            await interaction.followup.send("No results found.")
-            return 
+        webpage_url = info.get('webpage_url')
+        title = info.get('title', 'Untitled')
         
-        first_track = tracks[0]
-        filename = os.path.join(self.download_dir, f"{first_track['id']}.{first_track['ext']}")
-        
-        # Fallback check
-        if not os.path.exists(filename):
-            for f in os.listdir(self.download_dir):
-                if f.startswith(first_track['id']):
-                    filename = os.path.join(self.download_dir, f)
-                    break
-        
-        title = first_track.get("title","Untitled")
-        
+        queue_item = {
+            'webpage_url': webpage_url,
+            'title': title,
+            'channel': interaction.channel
+        }
+
         if voice_client.is_playing():
-            self.queue.append({
-                'filename': filename,
-                'title': title,
-                'channel': interaction.channel
-            })
+            self.queue.append(queue_item)
             await interaction.followup.send(f"Added **{title}** to the queue.")
         else:
-            def after_playing(error):
-                if error:
-                    print(f"Player error: {error}")
-                self.play_next(voice_client, filename)
-
-            try:
-                source = discord.FFmpegPCMAudio(filename, executable="ffmpeg")
-                voice_client.play(source, after=after_playing)
-                await interaction.followup.send(f"Playing **{title}**")
-            except Exception as e:
-                await interaction.followup.send(f"An error occurred while trying to play: {e}")
+            # Add to queue and play immediately (play_next logic handles popping)
+            self.queue.append(queue_item)
+            # Send initial message
+            await interaction.followup.send(f"Queued **{title}**. Starting playback...")
+            # Trigger playback
+            self.play_next(voice_client)
 
     @app_commands.command(name="pause", description="Pause the current song.")
     async def pause(self, interaction: discord.Interaction):
