@@ -290,10 +290,11 @@ class Music(commands.Cog):
                     self.play_next(voice_client)
                     return
 
-                ffmpeg_options = {
-                    'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5',
-                    'options': '-vn'
-                }
+                # FFmpeg options - allow HLS streams for SoundCloud
+                ffmpeg_before_options = (
+                    '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 '
+                    '-protocol_whitelist file,http,https,tcp,tls,crypto'
+                )
 
                 def after_playing(error):
                     if error:
@@ -305,7 +306,7 @@ class Music(commands.Cog):
 
                 source = discord.FFmpegPCMAudio(
                     stream_url,
-                    before_options='-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5',
+                    before_options=ffmpeg_before_options,
                     options='-vn'
                 )
                 voice_client.play(source, after=after_playing)
