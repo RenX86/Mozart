@@ -147,10 +147,15 @@ class Music(commands.Cog):
             'nocheckcertificate': True,
             'extractor_args': {
                 'youtube': {
-                    'player_client': ['android', 'ios', 'web'],
+                    'player_client': ['android', 'web','ios'],
                 },
             },
         }
+        
+        # Apply strict SoundCloud filter if URL identifies as such
+        if "soundcloud.com" in webpage_url:
+             ydl_opts['format'] = 'bestaudio[protocol=http]'
+
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(webpage_url, download=False)
             return info.get('url'), info.get('title'), info.get('thumbnail'), info.get('duration')
@@ -207,7 +212,7 @@ class Music(commands.Cog):
 
                 source = discord.FFmpegPCMAudio(
                     stream_url,
-                    before_options='-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5',
+                    before_options='-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 -protocol_whitelist file,http,https,tcp,tls',
                     options='-vn'
                 )
                 voice_client.play(source, after=after_playing)
@@ -223,8 +228,8 @@ class Music(commands.Cog):
                     
                     duration_str = "Unknown"
                     if dur:
-                        minutes = dur // 60
-                        seconds = dur % 60
+                        minutes = int(dur // 60)
+                        seconds = int(dur % 60)
                         duration_str = f"{minutes}:{seconds:02d}"
 
                     embed.add_field(name="Duration", value=duration_str, inline=True)
@@ -279,19 +284,32 @@ class Music(commands.Cog):
             'no_warnings': True,
             'nocheckcertificate': True,
             'default_search': 'ytsearch',
-            'extractor_args': {'youtube': {'player_client': ['android', 'ios', 'web']}},
+            'extractor_args': {'youtube': {'player_client': ['ios']}},
         }
         
         def search_song(query):
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                info = ydl.extract_info(query, download=False)
-                return info
+            # Attempt 1: Default (YouTube)
+            try:
+                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                    info = ydl.extract_info(query, download=False)
+                    return info, "YouTube"
+            except Exception as e:
+                print(f"YouTube search failed: {e}")
+                # Attempt 2: SoundCloud (Force progressive HTTP MP3 to avoid HLS issues entirely)
+                sc_opts = ydl_opts.copy()
+                sc_opts['default_search'] = 'scsearch'
+                # Strictly prefer HTTP protocol (progressive download)
+                sc_opts['format'] = 'bestaudio[protocol=http]'
+                with yt_dlp.YoutubeDL(sc_opts) as ydl:
+                    info = ydl.extract_info(query, download=False)
+                    print(f"SoundCloud Fallback: Selected URL: {info.get('url')} | Ext: {info.get('ext')}")
+                    return info, "SoundCloud"
 
         loop = asyncio.get_running_loop()
         try:
-            info = await loop.run_in_executor(None, lambda: search_song(song_query))
+            info, source_platform = await loop.run_in_executor(None, lambda: search_song(song_query))
         except Exception as e:
-            await interaction.followup.send(f"Error: {e}")
+            await interaction.followup.send(f"Error finding song on YouTube and SoundCloud: {e}")
             return
 
         if 'entries' in info:
@@ -330,17 +348,24 @@ class Music(commands.Cog):
             
             duration_str = "Unknown"
             if duration:
-                 m = duration // 60
-                 s = duration % 60
+                 m = int(duration // 60)
+                 s = int(duration % 60)
                  duration_str = f"{m}:{s:02d}"
 
             embed.add_field(name="Duration", value=duration_str, inline=True)
-            embed.set_footer(text=f"Position: {len(queue)}")
+            
+            footer_text = f"Position: {len(queue)}"
+            if source_platform == "SoundCloud":
+                 footer_text += " | Source: SoundCloud ☁️"
+            embed.set_footer(text=footer_text)
             
             await interaction.followup.send(embed=embed)
         else:
             queue.append(queue_item)
-            await interaction.followup.send(f"Loading **{title}**...")
+            msg = f"Loading **{title}**..."
+            if source_platform == "SoundCloud":
+                msg += " (via SoundCloud ☁️)"
+            await interaction.followup.send(msg)
             self.play_next(voice_client)
 
     @app_commands.command(name="pause", description="Pause the current song.")
