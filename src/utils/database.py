@@ -13,6 +13,12 @@ class DatabaseManager:
         connection = self.get_connection()
         cursor = connection.cursor()
         
+        cursor = connection.cursor()
+        
+        # Optimize performance: Enable Write-Ahead Logging (WAL) and Normal Sync
+        cursor.execute("PRAGMA journal_mode=WAL;")
+        cursor.execute("PRAGMA synchronous=NORMAL;")
+        
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS "users_per_guild" (
                 "user_id" INT,

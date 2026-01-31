@@ -1,0 +1,115 @@
+<!-- Flash Messages -->
+{% with messages = get_flashed_messages(with_categories=true) %}
+{% if messages %}
+{% for category, message in messages %}
+<div class="alert alert-{{ category if category != 'message' else 'info' }} alert-dismissible fade show mb-4"
+    role="alert">
+    {{ message }}
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+</div>
+{% endfor %}
+{% endif %}
+{% endwith %}
+
+<!-- Stats Row -->
+<div class="row mb-5 g-4">
+    <div class="col-md-4">
+        <div class="card-brutal text-center p-3">
+            <h5 class="text-uppercase mb-2">Bot Name</h5>
+            <h2 class="fw-bold m-0">{{ bot_name }}</h2>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card-brutal text-center p-3">
+            <h5 class="text-uppercase mb-2">Latency</h5>
+            <h2 class="fw-bold m-0">{{ latency }}ms</h2>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card-brutal text-center p-3">
+            <h5 class="text-uppercase mb-2">Servers</h5>
+            <h2 class="fw-bold m-0">{{ guild_count }}</h2>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4">
+    <!-- Now Playing Column -->
+    <div class="col-md-6">
+        <div class="card-brutal h-100">
+            <div class="card-header-brutal">
+                <i class="fas fa-compact-disc me-2"></i> NOW_PLAYING
+            </div>
+            <div class="card-body text-center d-flex flex-column justify-content-center align-items-center p-4">
+                {% if current_song %}
+                <div class="vinyl-container mb-4">
+                    <i class="fas fa-record-vinyl fa-5x {{ 'spin' if is_playing else '' }}"></i>
+                </div>
+                <h3 class="card-title fw-bold mb-4 text-break w-100">{{ current_song.title }}</h3>
+
+                <div class="controls mb-4 d-flex gap-3 justify-content-center">
+                    {% if user %}
+                    <form action="{{ url_for('pause') if is_playing else url_for('resume') }}" method="POST">
+                        <button type="submit" class="btn-brutal btn-control">
+                            <i class="fas {{ 'fa-pause' if is_playing else 'fa-play' }}"></i>
+                        </button>
+                    </form>
+                    <form action="{{ url_for('skip') }}" method="POST">
+                        <button type="submit" class="btn-brutal btn-control">
+                            <i class="fas fa-forward"></i>
+                        </button>
+                    </form>
+                    {% else %}
+                    <div class="alert alert-dark p-2 text-uppercase" role="alert" style="font-size: 0.8rem;">
+                        <i class="fas fa-lock me-2"></i> Login to Access Controls
+                    </div>
+                    {% endif %}
+                </div>
+
+                <div class="meta-tag">
+                    SERVER: {{ current_song.channel.guild.name if current_song.channel else 'Unknown' }}
+                </div>
+                {% else %}
+                <div class="empty-state my-5">
+                    <i class="fas fa-ghost fa-3x mb-3"></i>
+                    <p class="fw-bold">NO_SIGNAL</p>
+                </div>
+                {% if voice_connected %}
+                <span class="badge-brutal bg-success">VOICE_ACTIVE</span>
+                {% else %}
+                <span class="badge-brutal bg-secondary">IDLE_MODE</span>
+                {% endif %}
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Queue Column -->
+    <div class="col-md-6">
+        <div class="card-brutal h-100">
+            <div class="card-header-brutal">
+                <i class="fas fa-list-ol me-2"></i> QUEUE_LIST
+            </div>
+            <div class="card-body p-0">
+                <ul class="list-group list-group-flush queue-list" style="max-height: 400px; overflow-y: auto;">
+                    {% if queue %}
+                    {% for song in queue %}
+                    <li class="queue-item d-flex justify-content-between align-items-center p-3">
+                        <div class="d-flex align-items-center overflow-hidden">
+                            <span class="index-badge me-3">#{{ loop.index }}</span>
+                            <div class="text-truncate fw-bold">
+                                {{ song.title }}
+                            </div>
+                        </div>
+                    </li>
+                    {% endfor %}
+                    {% else %}
+                    <li class="p-5 text-center fw-bold text-muted">
+                        [ EMPTY_QUEUE ]
+                    </li>
+                    {% endif %}
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
