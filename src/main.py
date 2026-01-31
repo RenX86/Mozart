@@ -61,7 +61,7 @@ async def on_ready():
     cleanup_downloads()
     
     # Add Cogs
-    await bot.add_cog(Music(bot, DOWNLOAD_DIR))
+    await bot.add_cog(Music(bot, db_manager, DOWNLOAD_DIR))
     await bot.add_cog(Moderation(bot, db_manager))
     
     # Sync Commands

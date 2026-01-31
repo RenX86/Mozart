@@ -34,7 +34,17 @@ def index():
         guild_id = voice_client.guild.id
         # Safely access the dictionary using .get()
         current_song = music_cog.current_songs.get(guild_id)
-        queue = music_cog.queues.get(guild_id, [])
+        
+        # Queue is now in DB (async), so we must fetch it safely from the bot's loop
+        try:
+            if bot and bot.loop:
+                 future = asyncio.run_coroutine_threadsafe(music_cog.get_queue(guild_id), bot.loop)
+                 queue = future.result(timeout=2) # 2s timeout should be plenty for local DB
+            else:
+                 queue = []
+        except Exception as e:
+            print(f"Failed to fetch queue: {e}")
+            queue = []
     
     is_playing = voice_client.is_playing() if voice_client else False
     is_paused = voice_client.is_paused() if voice_client else False

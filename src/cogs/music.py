@@ -53,7 +53,7 @@ class MusicControls(discord.ui.View):
             # Clear queue and loop state
             guild_id = self.voice_client.guild.id
             if self.music_cog:
-                self.music_cog.clear_state(guild_id)
+                await self.music_cog.clear_state(guild_id)
             
             self.voice_client.stop()
             await self.voice_client.disconnect()
@@ -83,7 +83,8 @@ class MusicControls(discord.ui.View):
             return
         
         guild_id = interaction.guild.id
-        self.music_cog.shuffle_queue(guild_id)
+        guild_id = interaction.guild.id
+        await self.music_cog.shuffle_queue(guild_id)
         await interaction.response.send_message("Queue shuffled 🔀", ephemeral=True)
 
     @discord.ui.button(label="Queue", style=discord.ButtonStyle.secondary, emoji="📜", row=1)
@@ -92,7 +93,7 @@ class MusicControls(discord.ui.View):
             return
         
         guild_id = interaction.guild.id
-        queue = self.music_cog.get_queue(guild_id)
+        queue = await self.music_cog.get_queue(guild_id)
         
         if not queue:
             await interaction.response.send_message("Queue is empty.", ephemeral=True)
@@ -110,29 +111,35 @@ class MusicControls(discord.ui.View):
 
 
 class Music(commands.Cog):
-    def __init__(self, bot, download_dir=None):
+    def __init__(self, bot, db_manager, download_dir=None):
         self.bot = bot
-        self.queues: Dict[int, List[Dict]] = {}
+        self.db = db_manager
+        # self.queues removed in favor of DB
         self.current_songs: Dict[int, Dict] = {}
         self.loop_states: Dict[int, bool] = {} 
         
-    def get_queue(self, guild_id: int) -> List[Dict]:
-        if guild_id not in self.queues:
-            self.queues[guild_id] = []
-        return self.queues[guild_id]
+    async def get_queue(self, guild_id: int) -> List[Dict]:
+        # Now async and fetches from DB
+        db_queue = await self.db.get_queue(guild_id)
+        # We need to resolve channel_id to actual objects for the cog to work seamlessly
+        # or update the consumers to handle IDs. Let's resolve here for compatibility.
+        resolved_queue = []
+        for item in db_queue:
+            # item is a dict (from Row)
+            item['channel'] = self.bot.get_channel(item['channel_id'])
+            resolved_queue.append(item)
+        return resolved_queue
 
     def toggle_loop(self, guild_id: int) -> bool:
         current = self.loop_states.get(guild_id, False)
         self.loop_states[guild_id] = not current
         return not current
 
-    def shuffle_queue(self, guild_id: int):
-        if guild_id in self.queues:
-            random.shuffle(self.queues[guild_id])
+    async def shuffle_queue(self, guild_id: int):
+        await self.db.shuffle_queue(guild_id)
 
-    def clear_state(self, guild_id: int):
-        if guild_id in self.queues:
-            self.queues[guild_id].clear()
+    async def clear_state(self, guild_id: int):
+        await self.db.clear_queue(guild_id)
         if guild_id in self.current_songs:
             del self.current_songs[guild_id]
         if guild_id in self.loop_states:
@@ -166,41 +173,50 @@ class Music(commands.Cog):
 
         guild_id = voice_client.guild.id
         
-        if self.loop_states.get(guild_id, False):
-            if guild_id in self.current_songs:
-                finished_song = self.current_songs[guild_id]
-                self.get_queue(guild_id).append(finished_song)
-
-        queue = self.get_queue(guild_id)
-
-        if not queue:
-            if guild_id in self.current_songs:
-                del self.current_songs[guild_id]
-            return
-
-        next_song = queue.pop(0)
-        self.current_songs[guild_id] = next_song
-        
-        webpage_url = next_song['webpage_url']
-        channel = next_song['channel']
-        requested_title = next_song['title']
-        requester = next_song.get('requester', 'User')
-
+        # We need to run this async because we're in a synchronous callback (after=...)
+        # or just a synchronous chain.
         async def play_process():
             try:
+                # 1. Handle Loop Logic
+                if self.loop_states.get(guild_id, False):
+                    # If looping, re-add the song that just finished
+                    if guild_id in self.current_songs:
+                        finished_song = self.current_songs[guild_id]
+                        # We need to re-add it to the DB
+                        await self.db.add_to_queue(guild_id, finished_song)
+
+                # 2. Get next song from DB (pop)
+                next_song = await self.db.pop_from_queue(guild_id)
+
+                if not next_song:
+                    # Queue empty
+                    if guild_id in self.current_songs:
+                         del self.current_songs[guild_id]
+                    # Disconnect if desired? For now just stop.
+                    # await voice_client.disconnect() 
+                    return
+
+                # 3. Update current song state
+                self.current_songs[guild_id] = next_song
+                
+                # Resolve Channel Object (DB returned ID)
+                channel_id = next_song.get('channel_id')
+                channel = self.bot.get_channel(channel_id) if channel_id else None
+                
+                webpage_url = next_song['webpage_url']
+                requested_title = next_song['title']
+                requester = next_song.get('requester', 'User')
+
                 loop = asyncio.get_running_loop()
                 stream_url, title, thumb, dur = await loop.run_in_executor(None, lambda: self.get_stream_url(webpage_url))
                 
                 if not stream_url:
                     if channel:
                         await channel.send(f"Could not play **{title}**.")
+                    # Recursively call play_next (unsafe if infinite loop of failures?)
+                    # Better to just schedule it again
                     self.play_next(voice_client)
                     return
-
-                ffmpeg_options = {
-                    'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5',
-                    'options': '-vn'
-                }
 
                 def after_playing(error):
                     if error:
@@ -235,11 +251,14 @@ class Music(commands.Cog):
                     embed.add_field(name="Duration", value=duration_str, inline=True)
                     embed.add_field(name="Requested By", value=requester, inline=True)
                     
+                    # Peek at next song (without popping)
+                    queue = await self.db.get_queue(guild_id)
                     if queue:
                         next_up_title = queue[0]['title']
                         embed.add_field(name="Next Up", value=next_up_title, inline=False)
                     
                     view = MusicControls(self.bot, voice_client)
+                    # Update loop button state
                     if self.loop_states.get(guild_id, False):
                          for child in view.children:
                              if isinstance(child, discord.ui.Button) and child.label == "Loop":
@@ -251,7 +270,7 @@ class Music(commands.Cog):
                 import traceback
                 traceback.print_exc()
                 print(f"Error in play_next: {e} | Type: {type(e)}")
-                if channel:
+                if channel: # channel might be None if resolved failed
                     await channel.send(f"Error playing song: {e}")
                 self.play_next(voice_client)
 
@@ -335,10 +354,15 @@ class Music(commands.Cog):
         }
 
         guild_id = interaction.guild.id
-        queue = self.get_queue(guild_id)
-
+        guild_id = interaction.guild.id
+        # Use DB Count or Fetch
+        # We can just add it blindly first
+        await self.db.add_to_queue(guild_id, queue_item)
+        
+        # Determine if we are already playing to decide response
         if isinstance(voice_client, discord.VoiceClient) and voice_client.is_playing():
-            queue.append(queue_item)
+            # Fetch queue for position info
+            queue = await self.db.get_queue(guild_id)
             
             embed = discord.Embed(
                 title="Added to Queue", 
@@ -363,7 +387,6 @@ class Music(commands.Cog):
             
             await interaction.followup.send(embed=embed)
         else:
-            queue.append(queue_item)
             msg = f"Loading **{title}**..."
             if source_platform == "SoundCloud":
                 msg += " (via SoundCloud ☁️)"
@@ -401,7 +424,7 @@ class Music(commands.Cog):
             return
         voice_client = interaction.guild.voice_client
         if isinstance(voice_client, discord.VoiceClient):
-            self.clear_state(interaction.guild.id)
+            await self.clear_state(interaction.guild.id)
 
             if voice_client.is_playing() or voice_client.is_paused():
                 voice_client.stop()
