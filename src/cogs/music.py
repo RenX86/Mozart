@@ -150,7 +150,7 @@ class Music(commands.Cog):
         if guild_id in self.loop_states:
             self.loop_states[guild_id] = False
     
-    def get_base_ydl_opts(self, use_cookies=True) -> Dict[str, Any]:
+    def get_base_ydl_opts(self, use_cookies=True, platform='YouTube') -> Dict[str, Any]:
         """Get base yt-dlp options with optional cookie support"""
         opts: Dict[str, Any] = {
             'format': 'bestaudio/best',
@@ -160,16 +160,19 @@ class Music(commands.Cog):
             'nocheckcertificate': True,
             'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
             'referer': 'https://www.youtube.com/',
-            'extractor_args': {
-                'youtube': {
-                    'player_client': ['android', 'ios', 'web', 'tv_embedded'],
-                    'skip': ['hls', 'dash'],
-                },
-            },
             'retries': 10,
             'fragment_retries': 10,
             'skip_unavailable_fragments': True,
         }
+        
+        # YouTube-specific extractor args (skip HLS/DASH only for YouTube)
+        if platform == 'YouTube':
+            opts['extractor_args'] = {
+                'youtube': {
+                    'player_client': ['android', 'ios', 'web', 'tv_embedded'],
+                    'skip': ['hls', 'dash'],  # Only skip for YouTube
+                },
+            }
         
         # Add cookie file if it exists and use_cookies is True
         if use_cookies and os.path.exists(self.cookie_file):
@@ -178,9 +181,9 @@ class Music(commands.Cog):
         
         return opts
 
-    def get_stream_url(self, webpage_url):
+    def get_stream_url(self, webpage_url, platform='YouTube'):
         """Extract stream URL with cookie support"""
-        ydl_opts = self.get_base_ydl_opts(use_cookies=True)
+        ydl_opts = self.get_base_ydl_opts(use_cookies=True, platform=platform)
         
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(webpage_url, download=False)
@@ -190,12 +193,23 @@ class Music(commands.Cog):
         """Search across multiple platforms with fallback logic"""
         # Check if it's a direct URL
         if query.startswith('http://') or query.startswith('https://'):
-            ydl_opts = self.get_base_ydl_opts(use_cookies=True)
+            # Detect platform from URL
+            platform_name = 'YouTube'
+            if 'soundcloud.com' in query:
+                platform_name = 'SoundCloud'
+            elif 'jiosaavn.com' in query:
+                platform_name = 'JioSaavn'
+            elif 'bandcamp.com' in query:
+                platform_name = 'Bandcamp'
+            
+            ydl_opts = self.get_base_ydl_opts(use_cookies=True, platform=platform_name)
             try:
                 with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                     info = ydl.extract_info(query, download=False)
                     if 'entries' in info:
                         info = info['entries'][0] if info['entries'] else None
+                    if info:
+                        info['_platform'] = platform_name  # Store platform info
                     return info
             except Exception as e:
                 print(f"Error extracting URL {query}: {e}")
@@ -208,7 +222,10 @@ class Music(commands.Cog):
                 
             print(f"Trying {platform['name']} for query: {query}")
             
-            ydl_opts = self.get_base_ydl_opts(use_cookies=(platform['name'] == 'YouTube'))
+            ydl_opts = self.get_base_ydl_opts(
+                use_cookies=(platform['name'] == 'YouTube'),
+                platform=platform['name']
+            )
             ydl_opts['default_search'] = platform['search']
             
             try:
@@ -217,9 +234,11 @@ class Music(commands.Cog):
                     
                     if 'entries' in info and info['entries']:
                         result = info['entries'][0]
+                        result['_platform'] = platform['name']  # Store platform info
                         print(f"✓ Found on {platform['name']}: {result.get('title')}")
                         return result
                     elif info:
+                        info['_platform'] = platform['name']  # Store platform info
                         print(f"✓ Found on {platform['name']}: {info.get('title')}")
                         return info
                         
@@ -259,7 +278,11 @@ class Music(commands.Cog):
         async def play_process():
             try:
                 loop = asyncio.get_running_loop()
-                stream_url, title, thumb, dur = await loop.run_in_executor(None, lambda: self.get_stream_url(webpage_url))
+                # Get platform info from next_song
+                platform = next_song.get('_platform', 'YouTube')
+                stream_url, title, thumb, dur = await loop.run_in_executor(
+                    None, lambda: self.get_stream_url(webpage_url, platform)
+                )
                 
                 if not stream_url:
                     if channel:
@@ -298,8 +321,10 @@ class Music(commands.Cog):
                     
                     duration_str = "Unknown"
                     if dur:
-                        minutes = dur // 60
-                        seconds = dur % 60
+                        # Convert to int to handle float durations
+                        dur_int = int(dur)
+                        minutes = dur_int // 60
+                        seconds = dur_int % 60
                         duration_str = f"{minutes}:{seconds:02d}"
 
                     embed.add_field(name="Duration", value=duration_str, inline=True)
@@ -363,6 +388,7 @@ class Music(commands.Cog):
         title = info.get('title', 'Untitled')
         thumbnail = info.get('thumbnail')
         duration = info.get('duration')
+        platform = info.get('_platform', 'YouTube')  # Get platform info
         
         queue_item = {
             'webpage_url': webpage_url,
@@ -370,7 +396,8 @@ class Music(commands.Cog):
             'thumbnail': thumbnail,
             'duration': duration,
             'channel': interaction.channel,
-            'requester': interaction.user.display_name
+            'requester': interaction.user.display_name,
+            '_platform': platform  # Store platform for later use
         }
 
         guild_id = interaction.guild.id
@@ -389,8 +416,9 @@ class Music(commands.Cog):
             
             duration_str = "Unknown"
             if duration:
-                 m = duration // 60
-                 s = duration % 60
+                 dur_int = int(duration)
+                 m = dur_int // 60
+                 s = dur_int % 60
                  duration_str = f"{m}:{s:02d}"
 
             embed.add_field(name="Duration", value=duration_str, inline=True)
