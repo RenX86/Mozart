@@ -147,7 +147,7 @@ class Music(commands.Cog):
             'nocheckcertificate': True,
             'extractor_args': {
                 'youtube': {
-                    'player_client': ['android', 'web','ios'],
+                    'player_client': ['android', 'ios', 'web'],
                 },
             },
         }
@@ -284,7 +284,7 @@ class Music(commands.Cog):
             'no_warnings': True,
             'nocheckcertificate': True,
             'default_search': 'ytsearch',
-            'extractor_args': {'youtube': {'player_client': ['ios']}},
+            'extractor_args': {'youtube': {'player_client': ['android', 'ios', 'web']}},
         }
         
         def search_song(query):
