@@ -117,6 +117,7 @@ class Music(commands.Cog):
         # self.queues removed in favor of DB
         self.current_songs: Dict[int, Dict] = {}
         self.loop_states: Dict[int, bool] = {} 
+        self.volumes: Dict[int, float] = {} # Store volume per guild (0.0 - 1.0)
         
     async def get_queue(self, guild_id: int) -> List[Dict]:
         # Now async and fetches from DB
@@ -129,6 +130,19 @@ class Music(commands.Cog):
             item['channel'] = self.bot.get_channel(item['channel_id'])
             resolved_queue.append(item)
         return resolved_queue
+
+    def set_volume(self, guild_id: int, volume: float):
+        # Clamp between 0.0 and 1.0
+        volume = max(0.0, min(1.0, volume))
+        self.volumes[guild_id] = volume
+        
+        # If currently playing, update immediate source
+        voice_client = self.bot.get_guild(guild_id).voice_client if self.bot.get_guild(guild_id) else None
+        if voice_client and voice_client.source and isinstance(voice_client.source, discord.PCMVolumeTransformer):
+            voice_client.source.volume = volume
+
+    async def remove_song(self, guild_id: int, song_id: int):
+        await self.db.remove_from_queue(guild_id, song_id)
 
     def toggle_loop(self, guild_id: int) -> bool:
         current = self.loop_states.get(guild_id, False)
@@ -196,12 +210,13 @@ class Music(commands.Cog):
                     # await voice_client.disconnect() 
                     return
 
-                # 3. Update current song state
-                self.current_songs[guild_id] = next_song
-                
                 # Resolve Channel Object (DB returned ID)
                 channel_id = next_song.get('channel_id')
                 channel = self.bot.get_channel(channel_id) if channel_id else None
+                
+                # Update current song state WITH channel object
+                next_song['channel'] = channel
+                self.current_songs[guild_id] = next_song
                 
                 webpage_url = next_song['webpage_url']
                 requested_title = next_song['title']
@@ -226,11 +241,22 @@ class Music(commands.Cog):
                 if not voice_client.is_connected():
                     return
 
-                source = discord.FFmpegPCMAudio(
+                if not voice_client.is_connected():
+                    return
+
+                # Create Audio Source
+                original_source = discord.FFmpegPCMAudio(
                     stream_url,
                     before_options='-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 -protocol_whitelist file,http,https,tcp,tls',
                     options='-vn'
                 )
+                
+                # Wrap in Volume Transformer
+                # We need to store the volume state somewhere if we want it to persist between songs
+                # For now, let's default to self.volumes.get(guild_id, 0.5)
+                current_vol = self.volumes.get(guild_id, 0.5) # Default 50%
+                source = discord.PCMVolumeTransformer(original_source, volume=current_vol)
+                
                 voice_client.play(source, after=after_playing)
                 
                 if channel:

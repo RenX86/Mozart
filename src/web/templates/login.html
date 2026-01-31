@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mozart Access</title>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        body {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 20px;
+            background-color: var(--bg-main);
+        }
+
+        /* Page-specific overrides or additions to standard brutal theme */
+        .form-control-brutal {
+            border: var(--border-width) solid var(--border-color);
+            border-radius: 0;
+            padding: 1rem;
+            font-weight: bold;
+            background-color: var(--bg-main);
+            color: var(--text-main);
+            box-shadow: 3px 3px 0px 0px var(--shadow-color);
+            transition: all 0.1s;
+        }
+
+        .form-control-brutal:focus {
+            background-color: var(--bg-card);
+            color: var(--text-main);
+            box-shadow: 5px 5px 0px 0px var(--shadow-color);
+            transform: translate(-2px, -2px);
+            outline: none;
+        }
+
+        .form-control-brutal::placeholder {
+            opacity: 0.5;
+            text-transform: uppercase;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="card-brutal" style="width: 100%; max-width: 450px;">
+        <div class="card-header-brutal text-center" style="font-size: 1.5rem;">
+            <i class="fas fa-fingerprint me-2"></i> ACCESS_GATEWAY
+        </div>
+
+        <div class="card-body p-4">
+            <p class="text-uppercase fw-bold text-center mb-4" style="font-size: 0.9rem; opacity: 0.8;">
+                <i class="fas fa-shield-alt me-2"></i> Secure OAuth2 Handshake
+            </p>
+
+            {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+            {% for category, message in messages %}
+            <div class="alert alert-{{ category }} border-3 border-dark rounded-0 fw-bold mb-4" role="alert"
+                style="border: var(--border-width) solid var(--border-color); box-shadow: 3px 3px 0 var(--shadow-color);">
+                {{ message }}
+            </div>
+            {% endfor %}
+            {% endif %}
+            {% endwith %}
+
+            <form action="{{ url_for('login') }}" method="POST">
+                <div class="mb-4">
+                    <label for="client_id" class="form-label fw-bold text-uppercase">Client ID</label>
+                    <input type="text" class="form-control form-control-brutal" id="client_id" name="client_id" required
+                        placeholder="000000000000000000" autocomplete="off">
+                </div>
+
+                <div class="mb-5">
+                    <label for="client_secret" class="form-label fw-bold text-uppercase">Client Secret</label>
+                    <input type="password" class="form-control form-control-brutal" id="client_secret"
+                        name="client_secret" required placeholder="••••••••••••••••••••••••••••••" autocomplete="off">
+                </div>
+
+                <button type="submit" class="btn-brutal w-100 p-3 text-uppercase" style="font-size: 1.2rem;">
+                    Authenticate <i class="fas fa-terminal ms-2"></i>
+                </button>
+            </form>
+
+            <div class="mt-4 text-center">
+                <small class="fw-bold text-muted" style="font-size: 0.7rem; text-transform: uppercase;">
+                    credentials are ephemeral & never stored on disk
+                </small>
+            </div>
+        </div>
+    </div>
+</body>
+
+</html>

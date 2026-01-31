@@ -45,26 +45,59 @@
                 <div class="vinyl-container mb-4">
                     <i class="fas fa-record-vinyl fa-5x {{ 'spin' if is_playing else '' }}"></i>
                 </div>
-                <h3 class="card-title fw-bold mb-4 text-break w-100">{{ current_song.title }}</h3>
+                <h3 class="card-title fw-bold mb-3 text-break w-100">{{ current_song.title }}</h3>
 
+                <!-- Volume Slider -->
+                <div class="volume-control mb-4 w-75">
+                    <label for="volumeSlider" class="form-label text-muted small fw-bold">VOLUME: <span id="volValue">{{
+                            volume }}</span>%</label>
+                    {% if user %}
+                    <input type="range" class="form-range" id="volumeSlider" min="0" max="100" value="{{ volume }}"
+                        onchange="setVolume(this.value)"
+                        oninput="document.getElementById('volValue').innerText = this.value">
+                    {% else %}
+                    <input type="range" class="form-range" disabled value="{{ volume }}">
+                    {% endif %}
+                </div>
+
+                <!-- Main Controls -->
                 <div class="controls mb-4 d-flex gap-3 justify-content-center">
                     {% if user %}
+                    <button class="btn-brutal btn-control" onclick="postControl('/api/shuffle')" title="Shuffle">
+                        <i class="fas fa-random"></i>
+                    </button>
+
                     <form action="{{ url_for('pause') if is_playing else url_for('resume') }}" method="POST">
-                        <button type="submit" class="btn-brutal btn-control">
+                        <button type="submit" class="btn-brutal btn-control btn-lg">
                             <i class="fas {{ 'fa-pause' if is_playing else 'fa-play' }}"></i>
                         </button>
                     </form>
+
                     <form action="{{ url_for('skip') }}" method="POST">
-                        <button type="submit" class="btn-brutal btn-control">
+                        <button type="submit" class="btn-brutal btn-control btn-lg">
                             <i class="fas fa-forward"></i>
                         </button>
                     </form>
+
+                    <button class="btn-brutal btn-control {{ 'btn-active' if loop_state else '' }}"
+                        onclick="postControl('/api/loop')" title="Loop">
+                        <i class="fas fa-repeat"></i>
+                    </button>
                     {% else %}
                     <div class="alert alert-dark p-2 text-uppercase" role="alert" style="font-size: 0.8rem;">
                         <i class="fas fa-lock me-2"></i> Login to Access Controls
                     </div>
                     {% endif %}
                 </div>
+
+                <!-- Secondary Controls -->
+                {% if user %}
+                <div class="mb-3">
+                    <button class="btn-brutal btn-sm btn-danger" onclick="postControl('/api/clear')">
+                        CLEAR_QUEUE
+                    </button>
+                </div>
+                {% endif %}
 
                 <div class="meta-tag">
                     SERVER: {{ current_song.channel.guild.name if current_song.channel else 'Unknown' }}
@@ -101,6 +134,12 @@
                                 {{ song.title }}
                             </div>
                         </div>
+                        {% if user %}
+                        <button class="btn btn-sm text-danger" onclick="postControl('/api/remove/{{ song.id }}')"
+                            title="Remove">
+                            <i class="fas fa-times"></i>
+                        </button>
+                        {% endif %}
                     </li>
                     {% endfor %}
                     {% else %}
@@ -113,3 +152,29 @@
         </div>
     </div>
 </div>
+
+<script>
+    function setVolume(val) {
+        console.log("Setting volume:", val);
+        fetch('/api/volume', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ volume: val })
+        }).catch(console.error);
+    }
+
+    function postControl(endpoint) {
+        console.log("Control:", endpoint);
+        fetch(endpoint, { method: 'POST' })
+            .then(() => {
+                // Force HTMX refresh of the dashboard content
+                const dashboard = document.getElementById('dashboard-content');
+                if (dashboard && htmx) {
+                    htmx.trigger(dashboard, 'every 5s'); // Trigger the poller
+                    // Or better, just manually fetch if we want instant update
+                    // But polling will catch it in <5s
+                }
+            })
+            .catch(console.error);
+    }
+</script>

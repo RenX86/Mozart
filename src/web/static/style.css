@@ -2,22 +2,26 @@
     /* Dimensions */
     --border-width: 3px;
     --shadow-offset: 5px;
-    --radius: 0px; 
-}
+    --radius: 0px;
 
-/* Light Theme: Neo-Pop (CMYK vibes) */
-[data-theme="light"] {
+    /* Default Theme (Light): Neo-Pop */
     --bg-main: #FFFFFF;
     --bg-card: #F9F9F9;
     --text-main: #000000;
     --border-color: #000000;
     --shadow-color: #000000;
-    
-    --accent-primary: #00E5FF; /* Cyan */
-    --accent-secondary: #FFD600; /* Yellow */
-    --accent-action: #FF00E6; /* Magenta */
-    --accent-danger: #FF2E2E; /* Red */
-    
+    --pattern-color: #E5E5E5;
+    /* Subtle Gray for Light Mode */
+
+    --accent-primary: #00E5FF;
+    /* Cyan */
+    --accent-secondary: #FFD600;
+    /* Yellow */
+    --accent-action: #FF00E6;
+    /* Magenta */
+    --accent-danger: #FF2E2E;
+    /* Red */
+
     --nav-bg: #FFFFFF;
 }
 
@@ -26,16 +30,21 @@
     --bg-main: #121212;
     --bg-card: #1F1F1F;
     --text-main: #FFFFFF;
-    
+
     /* The Signature Look: Yellow Borders on Dark */
-    --border-color: #FFD600; 
-    --shadow-color: #FFD600; 
-    
-    --accent-primary: #FFD600; /* Yellow Backgrounds */
-    --accent-secondary: #FFFFFF; /* White Accents */
-    --accent-action: #FFFFFF; /* White Buttons */
+    --border-color: #FFD600;
+    --shadow-color: #FFD600;
+    --pattern-color: #FFD600;
+    /* Yellow Stripes for Dark Mode */
+
+    --accent-primary: #FFD600;
+    /* Yellow Backgrounds */
+    --accent-secondary: #FFFFFF;
+    /* White Accents */
+    --accent-action: #FFFFFF;
+    /* White Buttons */
     --accent-danger: #FF4D4D;
-    
+
     --nav-bg: #121212;
 }
 
@@ -45,15 +54,14 @@ body {
     font-family: 'Space Grotesk', monospace;
     transition: background-color 0.2s;
     /* Diagonal Stripe Pattern */
-    background-image: repeating-linear-gradient(
-        45deg,
-        var(--border-color) 0,
-        var(--border-color) 1px,
-        transparent 0,
-        transparent 50%
-    );
+    background-image: repeating-linear-gradient(45deg,
+            var(--pattern-color) 0,
+            var(--pattern-color) 1px,
+            transparent 1px,
+            transparent 10px);
     background-size: 20px 20px;
-    background-color: var(--bg-main); /* Fallback/Blend */
+    background-color: var(--bg-main);
+    /* Fallback/Blend */
     background-blend-mode: overlay;
     opacity: 1;
 }
@@ -72,7 +80,8 @@ body {
     text-transform: uppercase;
     letter-spacing: -1px;
     background-color: var(--accent-primary);
-    color: #000 !important; /* Force black text on primary accent */
+    color: #000 !important;
+    /* Force black text on primary accent */
     padding: 5px 10px;
     border: var(--border-width) solid var(--border-color);
     box-shadow: 3px 3px 0 var(--shadow-color);
@@ -94,7 +103,7 @@ body {
 
 .card-header-brutal {
     background-color: var(--accent-secondary);
-    color: #000000; 
+    color: #000000;
     border-bottom: var(--border-width) solid var(--border-color);
     padding: 1rem;
     font-weight: 900;
@@ -123,7 +132,8 @@ body {
     width: 60px;
     height: 60px;
     background-color: var(--accent-action);
-    color: #000; /* Black icons */
+    color: #000;
+    /* Black icons */
     font-size: 1.5rem;
     display: flex;
     align-items: center;
@@ -149,10 +159,24 @@ body {
     color: #000;
 }
 
-.badge-online { background-color: var(--accent-primary); }
-.badge-offline { background-color: var(--accent-danger); }
-.bg-success { background-color: var(--accent-action) !important; color: #000; }
-.bg-secondary { background-color: var(--bg-main) !important; color: var(--text-main); border: 2px solid var(--border-color);}
+.badge-online {
+    background-color: var(--accent-primary);
+}
+
+.badge-offline {
+    background-color: var(--accent-danger);
+}
+
+.bg-success {
+    background-color: var(--accent-action) !important;
+    color: #000;
+}
+
+.bg-secondary {
+    background-color: var(--bg-main) !important;
+    color: var(--text-main);
+    border: 2px solid var(--border-color);
+}
 
 /* Queue List */
 .queue-list {
@@ -201,7 +225,9 @@ body {
 }
 
 @keyframes spin {
-    100% { transform: rotate(360deg); }
+    100% {
+        transform: rotate(360deg);
+    }
 }
 
 /* Utilities override */

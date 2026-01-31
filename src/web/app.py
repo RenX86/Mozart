@@ -104,7 +104,10 @@ def get_dashboard_context():
             'is_playing': is_playing,
             'is_paused': is_paused,
             'voice_connected': bool(voice_client),
-            'user': user_info
+            'user': user_info,
+            # Enhancements
+            'volume': int(music_cog.volumes.get(voice_client.guild.id, 0.5) * 100) if voice_client and music_cog else 50,
+            'loop_state': music_cog.loop_states.get(voice_client.guild.id, False) if voice_client and music_cog else False
         }
     else:
          return {
@@ -116,7 +119,9 @@ def get_dashboard_context():
             'is_playing': False,
             'is_paused': False,
             'voice_connected': False,
-            'user': user_info
+            'user': user_info,
+            'volume': 50,
+            'loop_state': False
         }
 
 @app.route('/')
@@ -129,23 +134,104 @@ def dashboard_partial():
     context = get_dashboard_context()
     return render_template('partials/dashboard_body.html', **context)
 
-@app.route('/login')
+# --- Control APIs ---
+
+@app.route('/api/volume', methods=['POST'])
+@login_required
+def set_volume():
+    try:
+        data = request.json
+        if not data or 'volume' not in data:
+            return "Missing volume", 400
+            
+        vol_percent = int(data['volume'])
+        music_cog = get_music_cog()
+        vc = get_active_voice_client()
+        
+        if music_cog and vc:
+            music_cog.set_volume(vc.guild.id, vol_percent / 100.0)
+            return "Volume set", 200
+        return "Bot not active", 400
+    except Exception as e:
+        print(f"Volume API Error: {e}")
+        return str(e), 500
+
+@app.route('/api/loop', methods=['POST'])
+@login_required
+def toggle_loop():
+    music_cog = get_music_cog()
+    vc = get_active_voice_client()
+    if music_cog and vc:
+        new_state = music_cog.toggle_loop(vc.guild.id)
+        return str(new_state).lower(), 200
+    return "Bot not active", 400
+
+@app.route('/api/shuffle', methods=['POST'])
+@login_required
+def shuffle_queue():
+    music_cog = get_music_cog()
+    vc = get_active_voice_client()
+    if music_cog and vc:
+        asyncio.run_coroutine_threadsafe(music_cog.shuffle_queue(vc.guild.id), bot.loop)
+        return "Shuffled", 200
+    return "Bot not active", 400
+
+@app.route('/api/clear', methods=['POST'])
+@login_required
+def clear_queue():
+    music_cog = get_music_cog()
+    vc = get_active_voice_client()
+    if music_cog and vc:
+        asyncio.run_coroutine_threadsafe(music_cog.clear_state(vc.guild.id), bot.loop)
+        # Note: clear_state also stops the player usually, but let's check config
+        # Actually in music.py clear_state clears DB and current_song dict
+        return "Cleared", 200
+    return "Bot not active", 400
+
+@app.route('/api/remove/<int:song_id>', methods=['POST'])
+@login_required
+def remove_song(song_id):
+    music_cog = get_music_cog()
+    vc = get_active_voice_client()
+    if music_cog and vc:
+        asyncio.run_coroutine_threadsafe(music_cog.remove_song(vc.guild.id, song_id), bot.loop)
+        return "Removed", 200
+    return "Bot not active", 400
+
+@app.route('/login', methods=['GET', 'POST'])
 def login():
-    if not DISCORD_CLIENT_ID:
-        return "DISCORD_CLIENT_ID not set", 500
-    
-    redirect_uri = get_redirect_uri()
-    scope = "identify"
-    discord_login_url = (
-        f"https://discord.com/api/oauth2/authorize?client_id={DISCORD_CLIENT_ID}"
-        f"&redirect_uri={redirect_uri}&response_type=code&scope={scope}"
-    )
-    return redirect(discord_login_url)
+    if request.method == 'POST':
+        client_id = request.form.get('client_id')
+        client_secret = request.form.get('client_secret')
+        
+        if not client_id or not client_secret:
+            flash("Both Client ID and Secret are required.", "danger")
+            return redirect(url_for('login'))
+        
+        # Store in session for the callback
+        session['discord_client_id'] = client_id
+        session['discord_client_secret'] = client_secret
+        
+        redirect_uri = get_redirect_uri()
+        scope = "identify"
+        discord_login_url = (
+            f"https://discord.com/api/oauth2/authorize?client_id={client_id}"
+            f"&redirect_uri={redirect_uri}&response_type=code&scope={scope}"
+        )
+        return redirect(discord_login_url)
+
+    # GET request - show form
+    return render_template('login.html')
 
 @app.route('/callback')
 def callback():
-    if not DISCORD_CLIENT_ID or not DISCORD_CLIENT_SECRET:
-        return "OAuth2 credentials not configured", 500
+    # Retrieve credentials from session
+    client_id = session.get('discord_client_id')
+    client_secret = session.get('discord_client_secret')
+
+    if not client_id or not client_secret:
+        flash("Session expired or missing credentials. Please try again.", "danger")
+        return redirect(url_for('login'))
         
     code = request.args.get('code')
     if not code:
@@ -154,8 +240,8 @@ def callback():
     redirect_uri = get_redirect_uri()
     
     data = {
-        'client_id': DISCORD_CLIENT_ID,
-        'client_secret': DISCORD_CLIENT_SECRET,
+        'client_id': client_id,
+        'client_secret': client_secret,
         'grant_type': 'authorization_code',
         'code': code,
         'redirect_uri': redirect_uri,
@@ -180,10 +266,17 @@ def callback():
         r_user.raise_for_status()
         user_data = r_user.json()
         
-        # Save to session
+        # Save to session (keep the credentials for potential token refresh if we implemented that, 
+        # but for now just the user info is enough for the dashboard)
         session['user_id'] = user_data['id']
         session['username'] = user_data['username']
         session['avatar'] = user_data['avatar']
+        
+        # Clear secrets from session if we want to be extra paranoid, 
+        # but keep them if we needed to refresh tokens. 
+        # For this simple implementation, we can clean them up or leave them.
+        # Leaving them allows re-auth without re-typing if the token expires quickly 
+        # (though we aren't handling refresh logic here).
         
         flash(f"Welcome, {user_data['username']}!", 'success')
         return redirect(url_for('index'))
