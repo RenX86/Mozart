@@ -22,6 +22,10 @@ COPY . .
 # Create the data/downloads directory
 RUN mkdir -p src/data/downloads
 
+# Optional: Copy YouTube cookies file if it exists
+# This file should be created separately and not committed to Git
+# COPY youtube_cookies.txt /app/youtube_cookies.txt
+
 # Define environment variable for unbuffered output
 ENV PYTHONUNBUFFERED=1
 

@@ -6,6 +6,7 @@ import asyncio
 import random
 import os
 from typing import Any, Dict, List, Optional
+from pathlib import Path
 
 class MusicControls(discord.ui.View):
     def __init__(self, bot, voice_client):
@@ -114,7 +115,18 @@ class Music(commands.Cog):
         self.bot = bot
         self.queues: Dict[int, List[Dict]] = {}
         self.current_songs: Dict[int, Dict] = {}
-        self.loop_states: Dict[int, bool] = {} 
+        self.loop_states: Dict[int, bool] = {}
+        
+        # Cookie file path for YouTube authentication
+        self.cookie_file = os.getenv('YOUTUBE_COOKIE_FILE', 'youtube_cookies.txt')
+        
+        # Platform search order (YouTube first, then fallbacks)
+        self.platforms = [
+            {'name': 'YouTube', 'search': 'ytsearch', 'enabled': True},
+            {'name': 'SoundCloud', 'search': 'scsearch', 'enabled': True},
+            {'name': 'JioSaavn', 'search': 'jssearch', 'enabled': True},
+            {'name': 'Bandcamp', 'search': 'bcsearch', 'enabled': True},
+        ]
         
     def get_queue(self, guild_id: int) -> List[Dict]:
         if guild_id not in self.queues:
@@ -137,23 +149,86 @@ class Music(commands.Cog):
             del self.current_songs[guild_id]
         if guild_id in self.loop_states:
             self.loop_states[guild_id] = False
-
-    def get_stream_url(self, webpage_url):
-        ydl_opts: Any = {
+    
+    def get_base_ydl_opts(self, use_cookies=True) -> Dict[str, Any]:
+        """Get base yt-dlp options with optional cookie support"""
+        opts: Dict[str, Any] = {
             'format': 'bestaudio/best',
             'noplaylist': True,
             'quiet': True,
             'no_warnings': True,
             'nocheckcertificate': True,
+            'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'referer': 'https://www.youtube.com/',
             'extractor_args': {
                 'youtube': {
-                    'player_client': ['android', 'ios', 'web'],
+                    'player_client': ['android', 'ios', 'web', 'tv_embedded'],
+                    'skip': ['hls', 'dash'],
                 },
             },
+            'retries': 10,
+            'fragment_retries': 10,
+            'skip_unavailable_fragments': True,
         }
+        
+        # Add cookie file if it exists and use_cookies is True
+        if use_cookies and os.path.exists(self.cookie_file):
+            opts['cookiefile'] = self.cookie_file
+            print(f"Using cookie file: {self.cookie_file}")
+        
+        return opts
+
+    def get_stream_url(self, webpage_url):
+        """Extract stream URL with cookie support"""
+        ydl_opts = self.get_base_ydl_opts(use_cookies=True)
+        
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(webpage_url, download=False)
             return info.get('url'), info.get('title'), info.get('thumbnail'), info.get('duration')
+    
+    def search_multi_platform(self, query: str) -> Optional[Dict[str, Any]]:
+        """Search across multiple platforms with fallback logic"""
+        # Check if it's a direct URL
+        if query.startswith('http://') or query.startswith('https://'):
+            ydl_opts = self.get_base_ydl_opts(use_cookies=True)
+            try:
+                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                    info = ydl.extract_info(query, download=False)
+                    if 'entries' in info:
+                        info = info['entries'][0] if info['entries'] else None
+                    return info
+            except Exception as e:
+                print(f"Error extracting URL {query}: {e}")
+                return None
+        
+        # Try each platform in order
+        for platform in self.platforms:
+            if not platform['enabled']:
+                continue
+                
+            print(f"Trying {platform['name']} for query: {query}")
+            
+            ydl_opts = self.get_base_ydl_opts(use_cookies=(platform['name'] == 'YouTube'))
+            ydl_opts['default_search'] = platform['search']
+            
+            try:
+                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                    info = ydl.extract_info(query, download=False)
+                    
+                    if 'entries' in info and info['entries']:
+                        result = info['entries'][0]
+                        print(f"✓ Found on {platform['name']}: {result.get('title')}")
+                        return result
+                    elif info:
+                        print(f"✓ Found on {platform['name']}: {info.get('title')}")
+                        return info
+                        
+            except Exception as e:
+                print(f"✗ {platform['name']} failed: {str(e)[:100]}")
+                continue
+        
+        print(f"Failed to find '{query}' on any platform")
+        return None
 
     def play_next(self, voice_client):
         if not voice_client or not voice_client.guild:
@@ -270,35 +345,19 @@ class Music(commands.Cog):
             voice_client = await voice_channel.connect()
         elif voice_channel != voice_client.channel:
             if isinstance(voice_client, discord.VoiceClient):
-                await voice_client.move_to(voice_channel) 
+                await voice_client.move_to(voice_channel)
         
-        ydl_opts: Any = {
-            'format': 'bestaudio/best',
-            'noplaylist': True,
-            'quiet': True,
-            'no_warnings': True,
-            'nocheckcertificate': True,
-            'default_search': 'ytsearch',
-            'extractor_args': {'youtube': {'player_client': ['android', 'ios', 'web']}},
-        }
-        
-        def search_song(query):
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                info = ydl.extract_info(query, download=False)
-                return info
-
+        # Search across multiple platforms
         loop = asyncio.get_running_loop()
         try:
-            info = await loop.run_in_executor(None, lambda: search_song(song_query))
+            info = await loop.run_in_executor(None, lambda: self.search_multi_platform(song_query))
         except Exception as e:
-            await interaction.followup.send(f"Error: {e}")
+            await interaction.followup.send(f"Search error: {e}")
             return
 
-        if 'entries' in info:
-            if not info['entries']:
-                await interaction.followup.send("No results.")
-                return
-            info = info['entries'][0]
+        if not info:
+            await interaction.followup.send(f"❌ Could not find **{song_query}** on any platform (YouTube, SoundCloud, JioSaavn, Bandcamp).")
+            return
         
         webpage_url = info.get('webpage_url')
         title = info.get('title', 'Untitled')
