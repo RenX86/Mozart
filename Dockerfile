@@ -14,7 +14,9 @@ RUN apk add --no-cache \
     git \
     libsodium-dev \
     build-base \
-    libffi-dev
+    libffi-dev \
+    opus \
+    ca-certificates
 
 # Copy requirements first to leverage Docker cache
 COPY requirements.txt .

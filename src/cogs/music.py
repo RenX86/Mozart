@@ -147,7 +147,7 @@ class Music(commands.Cog):
             'nocheckcertificate': True,
             'extractor_args': {
                 'youtube': {
-                    'player_client': ['android', 'ios', 'web'],
+                    'player_client': ['android', 'web','ios'],
                 },
             },
         }
@@ -248,7 +248,9 @@ class Music(commands.Cog):
                     await channel.send(embed=embed, view=view)
 
             except Exception as e:
-                print(f"Error in play_next: {e}")
+                import traceback
+                traceback.print_exc()
+                print(f"Error in play_next: {e} | Type: {type(e)}")
                 if channel:
                     await channel.send(f"Error playing song: {e}")
                 self.play_next(voice_client)

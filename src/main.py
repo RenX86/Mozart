@@ -2,6 +2,7 @@ import os
 import discord
 from discord.ext import commands
 from dotenv import load_dotenv
+import discord.opus
 from cogs.music import Music
 from cogs.moderation import Moderation
 from utils.database import DatabaseManager
@@ -31,6 +32,21 @@ def cleanup_downloads():
 
 load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN")
+
+# Explicitly load Opus on Linux (Alpine)
+if not discord.opus.is_loaded():
+    # Common paths for Alpine/Linux
+    opus_paths = ['/usr/lib/libopus.so.0', 'libopus.so.0', 'libopus.so']
+    for path in opus_paths:
+        try:
+            discord.opus.load_opus(path)
+            print(f"Opus loaded from {path}")
+            break
+        except Exception:
+            pass
+    
+    if not discord.opus.is_loaded():
+        print("Warning: Could not load Opus library. Voice features may fail.")
 
 intents = discord.Intents.default()
 intents.message_content = True
