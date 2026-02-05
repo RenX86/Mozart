@@ -1,35 +1,38 @@
-# Use Alpine Linux for a much smaller image size
-FROM python:3.11-alpine
+# Stage 1: Builder
+FROM python:3.11-alpine as builder
 
-# Set the working directory
 WORKDIR /app
 
-# Install system dependencies using apk (Alpine Package Keeper)
-# ffmpeg: Required for music playback
-# git: Useful for yt-dlp updates
-# libsodium-dev: Required for PyNaCl (Discord voice support)
-# build-base, libffi-dev: Required to compile Python C-extensions
+# Install build dependencies
 RUN apk add --no-cache \
-    ffmpeg \
-    git \
-    libsodium-dev \
     build-base \
     libffi-dev \
+    libsodium-dev
+
+COPY requirements.txt .
+
+# Install dependencies into a temporary location
+RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
+
+# Stage 2: Runtime
+FROM python:3.11-alpine
+
+WORKDIR /app
+
+# Install runtime dependencies
+# ffmpeg: Required for music playback
+# libsodium: Required for PyNaCl (Discord voice support)
+# opus: Audio codec
+RUN apk add --no-cache \
+    ffmpeg \
+    libsodium \
     opus \
     ca-certificates
 
-# Copy requirements first to leverage Docker cache
-COPY requirements.txt .
+# Copy installed python dependencies from builder stage
+COPY --from=builder /install /usr/local
 
-# Install Python dependencies
-# This compiles pynacl and others which is why we needed build-base
-RUN pip install --no-cache-dir -r requirements.txt
-
-# OPTIONAL: Remove build dependencies to save even more space
-# We keep libsodium-dev as it might be needed at runtime depending on linking
-# RUN apk del build-base libffi-dev
-
-# Copy the rest of the application
+# Copy application code
 COPY . .
 
 # Create the data/downloads directory

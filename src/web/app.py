@@ -317,16 +317,15 @@ def skip():
 
 def run_flask_app():
     # Detect environment mode
-    # Check for explicit FLASK_DEBUG, FLASK_ENV, or VS Code environment indicators
-    is_vscode = os.environ.get('TERM_PROGRAM') == 'vscode' or 'VSCODE_PID' in os.environ
     env_debug = os.getenv('FLASK_DEBUG', 'false').lower() == 'true' or os.getenv('FLASK_ENV') == 'development'
     
-    debug_enabled = env_debug or is_vscode
-    
-    mode_str = 'DEBUG (VS Code Detected)' if is_vscode else ('DEBUG' if debug_enabled else 'PRODUCTION')
-    print(f" * Web Dashboard: Running in {mode_str} mode")
-    
-    # Run on port 5000 (or PORT env var for Render)
-    # use_reloader must be False to avoid spawning a duplicate Discord bot instance
     port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port, debug=debug_enabled, use_reloader=False)
+
+    if env_debug:
+        print(f" * Web Dashboard: Running in DEBUG mode")
+        # use_reloader must be False to avoid spawning a duplicate Discord bot instance
+        app.run(host='0.0.0.0', port=port, debug=True, use_reloader=False)
+    else:
+        print(f" * Web Dashboard: Running in PRODUCTION mode (Waitress)")
+        from waitress import serve
+        serve(app, host='0.0.0.0', port=port)
