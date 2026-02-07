@@ -171,32 +171,32 @@ def toggle_loop():
 def shuffle_queue():
     music_cog = get_music_cog()
     vc = get_active_voice_client()
-    if music_cog and vc:
+    if music_cog and vc and bot and bot.loop:
         asyncio.run_coroutine_threadsafe(music_cog.shuffle_queue(vc.guild.id), bot.loop)
         return "Shuffled", 200
-    return "Bot not active", 400
+    return "Bot or event loop not active", 400
 
 @app.route('/api/clear', methods=['POST'])
 @login_required
 def clear_queue():
     music_cog = get_music_cog()
     vc = get_active_voice_client()
-    if music_cog and vc:
+    if music_cog and vc and bot and bot.loop:
         asyncio.run_coroutine_threadsafe(music_cog.clear_state(vc.guild.id), bot.loop)
         # Note: clear_state also stops the player usually, but let's check config
         # Actually in music.py clear_state clears DB and current_song dict
         return "Cleared", 200
-    return "Bot not active", 400
+    return "Bot or event loop not active", 400
 
 @app.route('/api/remove/<int:song_id>', methods=['POST'])
 @login_required
 def remove_song(song_id):
     music_cog = get_music_cog()
     vc = get_active_voice_client()
-    if music_cog and vc:
+    if music_cog and vc and bot and bot.loop:
         asyncio.run_coroutine_threadsafe(music_cog.remove_song(vc.guild.id, song_id), bot.loop)
         return "Removed", 200
-    return "Bot not active", 400
+    return "Bot or event loop not active", 400
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
