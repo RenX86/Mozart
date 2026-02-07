@@ -41,5 +41,8 @@ RUN mkdir -p src/data/downloads
 # Define environment variable for unbuffered output
 ENV PYTHONUNBUFFERED=1
 
+# Expose the port Render expects
+EXPOSE 10000
+
 # Run the application
 CMD ["python", "run.py"]

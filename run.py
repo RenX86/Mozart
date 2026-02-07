@@ -17,13 +17,18 @@ if __name__ == "__main__":
     # Inject the bot instance into the Flask app
     flask_app.bot = bot
     
-    # Start Flask in a separate thread
-    print("Starting Web Dashboard on http://localhost:5000")
-    flask_thread = threading.Thread(target=flask_app.run_flask_app)
-    flask_thread.daemon = True # Kills thread when main program exits
-    flask_thread.start()
+    # Get port from environment
+    port = int(os.environ.get('PORT', 5000))
     
+    # Start Discord Bot in a separate thread
     if not TOKEN:
-        print("Error: DISCORD_TOKEN not found in .env file.")
+        print("Error: DISCORD_TOKEN not found in environment.")
     else:
-        bot.run(TOKEN)
+        print(f"Starting Discord Bot...")
+        bot_thread = threading.Thread(target=bot.run, args=(TOKEN,), daemon=True)
+        bot_thread.start()
+    
+    # Start Flask on the main thread (blocking)
+    # This keeps the process alive and the port open for Render
+    print(f"Starting Web Dashboard on port {port}")
+    flask_app.run_flask_app()

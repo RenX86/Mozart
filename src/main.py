@@ -61,12 +61,12 @@ async def on_ready():
     cleanup_downloads()
     
     # Add Cogs
-    await bot.add_cog(Music(bot, db_manager, DOWNLOAD_DIR))
-    await bot.add_cog(Moderation(bot, db_manager))
+    if not bot.get_cog('Music'):
+        await bot.add_cog(Music(bot, db_manager, DOWNLOAD_DIR))
+    if not bot.get_cog('Moderation'):
+        await bot.add_cog(Moderation(bot, db_manager))
     
-    # Sync Commands
-    synced = await bot.tree.sync()
-    print(f"{bot.user} is online! Synced {len(synced)} commands globally.")
+    print(f"{bot.user} is online! (Commands not synced automatically)")
 
 @bot.command()
 async def sync(ctx):

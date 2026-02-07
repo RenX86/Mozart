@@ -3,8 +3,7 @@ services:
     name: mozart-bot
     env: docker
     plan: free
-    buildCommand: docker build -t mozart .
-    startCommand: python run.py
+    healthCheckPath: /health
     envVars:
       - key: DISCORD_TOKEN
         sync: false

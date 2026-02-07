@@ -315,17 +315,38 @@ def skip():
         vc.stop() # This triggers the after_playing callback which plays next
     return redirect(url_for('index'))
 
+@app.route('/health')
+
+def health_check():
+
+    return {"status": "healthy", "bot_ready": bot.is_ready() if bot else False}, 200
+
+
+
 def run_flask_app():
+
     # Detect environment mode
+
     env_debug = os.getenv('FLASK_DEBUG', 'false').lower() == 'true' or os.getenv('FLASK_ENV') == 'development'
+
     
+
     port = int(os.environ.get('PORT', 5000))
 
+
+
     if env_debug:
-        print(f" * Web Dashboard: Running in DEBUG mode")
+
+        print(f" * Web Dashboard: Running in DEBUG mode on port {port}")
+
         # use_reloader must be False to avoid spawning a duplicate Discord bot instance
+
         app.run(host='0.0.0.0', port=port, debug=True, use_reloader=False)
+
     else:
-        print(f" * Web Dashboard: Running in PRODUCTION mode (Waitress)")
+
+        print(f" * Web Dashboard: Running in PRODUCTION mode (Waitress) on port {port}")
+
         from waitress import serve
-        serve(app, host='0.0.0.0', port=port)
+
+        serve(app, host='0.0.0.0', port=port, threads=4)
