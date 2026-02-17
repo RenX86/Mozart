@@ -1,5 +1,5 @@
 # Stage 1: Builder
-FROM python:3.11-alpine as builder
+FROM python:3.11-alpine AS builder
 
 WORKDIR /app
 
@@ -41,8 +41,8 @@ RUN mkdir -p src/data/downloads
 # Define environment variable for unbuffered output
 ENV PYTHONUNBUFFERED=1
 
-# Expose the port Render expects
-EXPOSE 10000
+# Expose the application port
+EXPOSE 5000
 
 # Run the application
 CMD ["python", "run.py"]

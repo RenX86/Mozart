@@ -35,7 +35,7 @@ Mozart is a powerful, hybrid Discord bot designed to bring high-quality music an
 * **Web Framework:** [Flask](https://flask.palletsprojects.com/) + [Waitress](https://docs.pylonsproject.org/projects/waitress/en/stable/)
 * **Audio Engine:** [yt-dlp](https://github.com/yt-dlp/yt-dlp) + FFmpeg
 * **Database:** SQLite (Persistent storage for warnings and queues)
-* **DevOps:** Docker, Render, GitHub Actions
+* **DevOps:** Docker, GitHub Actions
 
 ---
 
@@ -50,8 +50,7 @@ Mozart/
 │   └── main.py        # Discord bot entry point
 ├── run.py             # Main application orchestrator (Flask + Bot)
 ├── Dockerfile         # Multi-stage Alpine-based Docker image
-├── compose.yaml       # Docker Compose configuration
-└── render.yaml        # Render.com deployment blueprint
+└── compose.yaml       # Docker Compose configuration
 ```
 
 ---
@@ -101,15 +100,6 @@ Mozart/
 ```bash
 docker compose up -d
 ```
-
----
-
-## ☁️ Deployment (Render.com)
-
-1. Connect your GitHub repository to Render.
-2. Render will automatically detect the `render.yaml` file.
-3. Add your `DISCORD_TOKEN`, `DISCORD_CLIENT_ID`, and `DISCORD_CLIENT_SECRET` in the Render dashboard environment settings.
-4. The service will automatically bind to port `10000` and start the health check.
 
 ---
 

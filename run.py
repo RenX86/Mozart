@@ -29,6 +29,6 @@ if __name__ == "__main__":
         bot_thread.start()
     
     # Start Flask on the main thread (blocking)
-    # This keeps the process alive and the port open for Render
+    # This keeps the process alive
     print(f"Starting Web Dashboard on port {port}")
     flask_app.run_flask_app()
