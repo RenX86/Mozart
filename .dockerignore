@@ -1,15 +1,92 @@
-.git
-.venv
+# ========================
+# Git
+# ========================
+.git/
+.gitignore
+
+# ========================
+# Environment & Secrets
+# ========================
 .env
-__pycache__
-*.pyc
-*.pyo
-*.pyd
-.db
-src/data/downloads/*
-tests/
-Dockerfile
-compose.yaml
-compose.example.yaml
-README.md
-mozart.ps1
+.env.*
+*.pem
+*.key
+
+# ========================
+# Python
+# ========================
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+dist/
+build/
+.Python
+
+# Virtual Environments
+.venv/
+venv/
+env/
+
+# Testing & Coverage
+.pytest_cache/
+.coverage
+.tox/
+htmlcov/
+
+# Type checkers
+.mypy_cache/
+.pyre/
+
+# ========================
+# Editors & IDEs
+# ========================
+.vscode/
+.idea/
+.cursor/
+*.swp
+*.swo
+*~
+
+# ========================
+# OS
+# ========================
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# ========================
+# Logs & Temp
+# ========================
+*.log
+*.tmp
+*.temp
+
+# ========================
+# Docs & Notebooks
+# ========================
+docs/
+*.md
+.ipynb_checkpoints/
+
+# ========================
+# Docker itself
+# ========================
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# ========================
+# Node
+# ========================
+node_modules/
+
+# ========================
+# Misc
+# ========================
+.git
+.gitignore
+README*
+Trash/
+test_downloads/
+downloads/
