@@ -1,7 +1,8 @@
-discord.py
+discord.py>=2.7.1
 python-dotenv
 yt-dlp
 pynacl
+davey
 flask
 requests
 waitress

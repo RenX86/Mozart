@@ -4,10 +4,14 @@ FROM python:3.11-alpine AS builder
 WORKDIR /app
 
 # Install build dependencies
+# rust and cargo are required for the 'davey' package (maturin-based)
 RUN apk add --no-cache \
     build-base \
     libffi-dev \
-    libsodium-dev
+    libsodium-dev \
+    rust \
+    cargo \
+    openssl-dev
 
 COPY requirements.txt .
 
@@ -23,10 +27,12 @@ WORKDIR /app
 # ffmpeg: Required for music playback
 # libsodium: Required for PyNaCl (Discord voice support)
 # opus: Audio codec
+# openssl: Required for davey (E2EE/DAVE protocol)
 RUN apk add --no-cache \
     ffmpeg \
     libsodium \
     opus \
+    openssl \
     ca-certificates
 
 # Copy installed python dependencies from builder stage
